@@ -1,6 +1,8 @@
 # CoRdE Implementation
 This is an implementation of the paper "CoRdE: Cosserat Rod Elements for the Dynamic Simulation of One-Dimensional Elastic Objects" (2007, J. Spillman, M. Teschner). It can be used to simulate things like rope, string, chains, elastic rods, wires, bars, springs, and more. I originally intended to use it for 3D rope simulation in games, but could be adapted to these other use cases. I am only including the header file `Rope.hpp`, which contains all the relevant simulation code. It is using [xtensor](https://github.com/xtensor-stack/xtensor) for matrix operations (with my own aliases for `xm::vec3`, `xm::mat4` etc contained in `xutils.hpp`).
 
+![Screencast](https://raw.githubusercontent.com/Azmisov/corde_simulation/master/screencast.gif)
+
 Here's how it could be used, once included in your own project:
 ```c++
 // constructor automatically generates a simple ine
@@ -37,7 +39,7 @@ I'm mostly uploading this in case it is helpful to someone else. I could not fin
 	- `rope_math.ipynb`: the Jupyter Sage notebook I used to aid in the partial derivatives. I also verify that my manual simplifications are still correct here.
 	- `[name]_pd.txt`: I used these files to record my simplifications of the Sage output expressions
 
-Now, I don't really advocate using this method for actual simulation; this repo is more of a reference for anyone having trouble with similar simulations or just for the curious soul. Here is why:
+**Now, I don't really advocate using this method for actual simulation.** This repo is more of a reference for anyone having trouble with similar simulations or just for the curious soul. Here is why:
 - The simulation method is _explicit_, meaning it can need very small timesteps for the simulation to be stable, especially if you are simulating stiffer objects. I believe my implementation is quite efficient though, so its pretty good with say 50 segments. If you put it on the GPU (which is surely possible with this method), you could do much more. However, there are newer methods that are faster now.
 - The material constants aren't intuitive. I couldn't get them to match up with what is listed in the original paper though, so if you found a way to fix this, perhaps this wouldn't be a problem.
 - Perhaps due to timestep or improper material constants, I found it still became unstable in many situations. More fine tuning and work would be needed to figure out where this is coming from and possibly fix any errors in the code.
