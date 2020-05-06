@@ -1,0 +1,388 @@
+
+Others:
+https://link.springer.com/article/10.1007/s00466-012-0683-0
+
+ Visualizing knots and braids with touchable 3D manipulatives 
+https://ieeexplore.ieee.org/abstract/document/7465247
+
+A robust mathematical model for knot tying simulation and knot identification
+https://search.proquest.com/openview/8efd79881bf8c7e03a9387e7250d6fcd/1?pq-origsite=gscholar&cbl=18750&diss=y
+
+CoRdE Model:
+First we model the continuous version, then discretize it to simulate on computer.
+- r(phi) is 3d parametric function specifying the string position, with phi in range [0,1]
+	they call this the "centerline"
+- for torsion in the string, there is another d(phi) representing the rotation at every point
+	its an orthonormal basis, so its 3d again, but components are dependent:
+	d1/d2 are perpendicular to r(phi); d3 is parallel to r(phi), e.g. the normed derivative dr/dphi
+		and of course, they are all orthonormal
+	these are called "directors"
+- ||dr/dphi|| measures "stretch"; d3 is assumed to be the resting configuration, which is length 1
+- dd/dphi is the change in bending/torsion also called "strain rates"
+- dr/dt is velocity at certain point
+- angular velocity is a little tricky, but we'll define it using the directors as our frame of reference;
+	we want to measure rotation about one of d1/d2/d3 for some point phi.
+	May get this wrong but looks like you calculate wk = w dot dk, which is employing some Darboux vector identity
+
+3.2
+- to encode directors, they chose to use quaternions; formulas are given to convert from quat to director
+- strain rates are modified to use quaternions now, w/ additional Bk skew-symmetric matrices (see appendix for them)
+
+3.3
+They give some formulas specifying the energy stored from stretching, bending etc; basically integrals over the string
+of the terms above with some additional constants and stuff; essentially .5mv^2
+	Vs = stretch potential
+	Vb = bending potential
+	Tt = translation velocity kinetic
+	Tr = angular velocity kinetic
+A couple internal friction terms, which hold energy captured from friction I believe:
+	Dt = translation friction energy
+	Dr = rotation friction energy
+
+3.4
+Using langrange equations of motion. Not really sure what that means; perhaps just the use of Lagrange multipliers
+to allow for the constraints. There are two constraints: d3 being parallel to r(phi), and quaternion being unit length.
+So both constraints are just to enforce the directors are in the right form. I'm not sure exactly how they arrive
+at the full equation...
+
+4.1 Discretization
+- ri to ri+1 now represents a discrete rod element of the string
+- stretch is the change in the length of that rod element: (ri+1 - ri)/li
+	li variable = original length of rod, ri+1_not - ri_not
+- qi is the rotation of a rod, and is specified as being fixed at the center of the rod
+- dq/dphi is bending I suppose, and is calculated (qj+1 - qj)/lj
+	lj variable = avg lengths of rods connected to qj+1/qj = .5(li + li+1)
+
+	
+...
+
+
+Okay, I think I'll skip most of the derivations here and just go to the end:
+Simulation has basically two steps, first calculate internal forces (from potential / friction energy), then
+update positions, velocities, etc:
+(calculated per mass point)
+	v_next = v + dt*forces/mass
+	r_next  = r + dt*v_next
+(calculated per rod / quaternion / director)
+	euc_torques = (.5*transpose(Q)*torques)[1:4] // this converts r4 torques to r3
+		transpose(Q) you negate off-diagonal elements
+		They say one entry should be zero... but how do you know its supposed to be the first?
+		I think maybe this is something we should test
+	w_next = w + inv(I) * (euc_torques - w x (Iw))*dt
+		inverse of I is just reciprocal of diagonal elements
+		since it is diagonal w x Iw reduces to:
+			[bc(y-x), ac(y-x), 0]
+	q_next = norm( q + .5*Q*[0 w_next]*dt )	
+		was reading, and you could maybe try "fitting quaternions" instead of doing norm
+		see https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
+
+For the angular equations:
+	I = inertia tensor; approximated in 3.3.2 as diagonal matrix:
+		I1,I2 = rho*pi(r^2)/4, I3 = rho*pi(r^2)/2
+		rho/r are constants for density and radius
+	Q = 4x4 quaternion matrix; there are many ways to represent, but I believe the one they're using is based on
+		https://en.wikipedia.org/wiki/Quaternion#Matrix_representations
+		for quaternion a + bi + cj +dk
+		[a -b -c -d]
+		[b  a -d  c]
+		[c  d  a -b]
+		[d -c  b  a]
+	This is supposed to be conjugate matrix (orthonormal basis?) since they use transpose(Q) to do the inverse operation
+	converting torques to R3
+
+To calculate internal forces and torques, we take partial derivatives of potential, constraint, and dissipation (friction) energy.
+Energy is a scalar, so when you take partial derivative wrt r/q,  you'll get three r' and four q'. Translation only use r (except constraint), which will
+go to making F, and rotational only use q, which will go towards torques.
+
+At the very least, torques are calculated per (director) element. Paper doesn't show element subscript for Forces, but I assume so. So
+I'm guessing you do partial derivatives wrt ri, not some combination with ri+1. Another fact is that they distinguish between wrt r vs
+dr/dt; technically, isn't dr/dt related to r somehow? not sure really
+
+I will do derivatives via sagemath just to make sure there's no mistakes
+potential (wrt r and q):
+	stretch = .5*li*Ks(sqrt(selfdot(r+1 - ri))/li - 1)^2
+		norm = sqrt(selfdot(len,len))
+		PDi = Ks*dr*(1/norm - 1/li) [VERIFIED]
+		PDj = -PDi [VERIFIED]
+	bending = .5*lj Sum{k,1,3}[ Kkk( [Bk(qj + qj+1)] dot [(qj+1 - qj)/lj] - uk)^2 ]
+		Bk is a swizzle + negation op; can turn into a matrix B w/ (qj + qj+1) terms
+			B: [d,c,-b,-a]
+			   [-c,d,a,-b]
+			   [b,-a,d,-c]
+		Interestingly, Bk is a quaternion matrix I think, with bottom row cut off; maybe we can reuse Q from angular velocity update?
+		We need another matrix, this time with qj+1;
+			Q2: [-d,c,-b]
+			    [-c,-d,a]
+			    [b,-a,-d]
+			    [a,b,c]
+		PDi = 2*Q2* ([Kx Kx Ky] elementwise_product (B*dq/lj - u)) [VERIFIED]
+		PDj = same as PDi, but we use negated qj to build Q2 matrix [VERIFIED]
+constraint (wrt r and q):
+	.5*li*k*selfdot((ri+1-ri)/||ri+1-ri|| - d3(qi))
+		d3(q) = I believe converts q to director, and then takes the d3 component
+			the d3 component is the one that's suppose to equal r'
+		formula given in 3.2 of paper:
+			[2*(q1q3+q2q4), 2*(q2q3-q1q4), -q1^2 - q2^2 + q3^2 + q4^2]
+		This ones a bit complicated, but I believe it eventually reduces to:
+			drr = dr dot dr (squared l2 norm)
+			norm = sqrt(drr) (l2 norm)
+			delta = (dr/norm - d3);
+			PDi = k*li/norm*(dr*(delta dot dr)/drr - delta) [VERIFIED]
+			  or can put the /norm inside delta instead, and that works too
+			PDj = -PDi [VERIFIED]
+	Now for the same equation, but wrt q:
+		Q1: [-c +d +a]
+		    [-d -c +b]
+		    [-a -b -c]
+		    [-b +a -d]
+		Q1 is made of q entries
+		PDi = 2*k*li*Q1*(dr/norm - d3) [VERIFIED]
+		PDj = 0, since the formula only depends on q [VERIFIED]
+dissipation (wrt dr/dt and dq/dt):
+	translation = .5*li*gamma_t * selfdot(v_rel)
+		v_rel = 1/(li)^3 * (ri+1 - ri)((dri+1/dt - dri/dt) dot (ri+1 - ri))
+		dr/dt is just velocity
+			(a-b)*(c-d) = ac-ad-bc+bd
+			(b-a)*(d-c) = bd-bc-ad+Ac, so sign doesn't matter inside
+		drv = dr dot dv
+		drr = dr dot dr (squared l2 norm)
+		PDi = -gt/li^5*dr*drr*drv [VERIFIED]
+		PDj = -PDi [VERIFIED]
+	rotation = 2*gamma_r/lj Sum{k,1,3}[ (Bk_not*qj+1*dqj+1/dt - Bk_not*qj*dqj/dt)^2 ]
+		Bk_not is a swizzle + negation op:
+			Bk01: [d,-c,b,-a]
+			Bk02: [c,d,-a,-b]
+			Bk03: [-b,a,d,-c]
+		dqj/dt is given by .5*Q*(0 w); you use the 4x4 matrix for converting torques above I believe;
+		again, might need to check that 0 is in the right spot; but derivative shouldn't involve any r's/qs
+		bk_delta = Bk0*qj2*dqj2/dt - Bk0*qj*dqj/dt, which is just from the original formula
+		PDi = -4*gr/lj*transpose(Bk0*qj)*bk_delta [VERIFIED]
+			(only -2, if you absorb the .5 for dqj/dt)
+		PDj = same as PDi, but w/ -transpose(Bk0*(qj+1)) instead [VERIFIED]
+		
+
+gamma_t = internal translation friction constant
+gamma_r = internal rotation friction constant
+K = diagonal stiffness tensor, related to young's/shear modulus E/G:
+	K1,K2 = E*pi(r^2)/4, K3 = G*pi(r^2)/2
+Ks = Es*pi*r^2, where Es is the stretch modulus
+uk = 2/||q|^2 * Bk * (q dot dq/dphi)
+	doesn't really make sense though, since that would make delta zero I think
+	From reading this https://lcvmwww.epfl.ch/publications/data/phd/6/These_2717_Chouaieb.pdf,
+	it would appear it is supposed to be the stress sing the reference/resting configuration. If straight and
+	untwisted, it is (0,0,0) apparently.
+Bk/Bk_not = see appendix
+	
+-----------------
+So update, I was writing the code and realized we aren't handling internal forces on the final mass element. It has
+no pair, so we can't calculate dr, dq, etc. I think what you are actually supposed to do is calculate wrt ri for mass point
+i, and then wrt rj for mass point j. So basically calculate internal forces wrt rods, and the forces apply to both ends.
+That would also answer the question about what derivatives we're supposed to do (since there's both ri and rj). Another
+possibility is that you calculate the force wrt ri, but that force applies to both i and j points. I don't think that's
+the case though; seems more likely its like backpropagating error in neural networks: total force has both i and j
+components, and you take pd wrt each to get contribution to final.
+
+I will update formulas above derivatives wrt i+1 components as PDj (PDi for i)
+
+------------------
+Analyzing the quaternions a bit more, I want to know how they're coming up with the Q<->director conversions. So looks
+like it actually is the regular quaternion rotation matrix:
+	[1-2*(qb*qb+qc*qc), 2*(qa*qb-qc*qd), 2*(qa*qc+qb*qd)],
+	[2*(qa*qb+qc*qd), 1-2*(qa*qa+qc*qc), 2*(qb*qc-qa*qd)],
+	[2*(qa*qc-qb*qd), 2*(qb*qc+qa*qd), 1-2*(qa*qa+qb*qb)]
+Each column is a basis (d1,d2,d3), indicating rotation of [1,0,0], [0,1,0], and [0,0,1] vectors. They did something interesting
+to sort of embed the unit constraint I guess. Substitute norm(q)=qa^2+qb^2+qc^2+qd^2, and we get the formula in the paper.
+
+aa	ac	ab	ad	bb	bc	bd	cc	cd	EQ
+-2				-2					E3z-1
+				-2			-2		E1x-1
+-2							-2		E2y-1
+		2						2	E1y
+		2						-2	E2x
+	2					-2			E1z
+	2					2			E3x
+			2		2				E2z
+			-2		2				E3y
+
+Now solving system:
+aa	ac	ab	ad	bb	bc	bd	cc	cd	EQ
+1									(E2y-E3z+E1x+1)/4
+	1								(E1z+E3x)/4
+		1							(E1y+E2x)/4
+			1						(E2z-E3y)/4
+				1					(E1x-E3z+E2y+1)/4
+					1				(E2z+E3y)/4
+						1			(E3x-E1z)/4
+							1		(E3z-E1x-E2y+1)/4
+								1	(E1y-E2x)/4
+
+May have made a mistake somewhere in there, but I checked in sage, and you can do:
+a = .5*np.sqrt(A-B-C+1);
+b = .5*np.sqrt(B-A-C+1);
+c = .5*np.sqrt(C-A-B+1);
+w/ [A,B,C] the diagonal of euclidean basis [E1x,E2y,E3z]
+How to resolve signs?
+	q and -q give same rotation matrix, from tests. So we can give a random sign
+	to any value to start. We want to avoid zeros (or near zeros, as those may
+	have flipped sign). So let's use the largest squared value as the initial reference.
+	Let's say its positive, and call it r1. That forces the values of
+		(r1,r2), (r1,r3), (r1,r4)
+	Those are given by the deltas I showed above. We can pick the largest as r2. r2's sign
+	will match that of the delta. Now we have two remaining. Calculate r2 deltas, but multiplied
+	by r2 sign so they match that of r1
+		(r1,r3) and (r2,r3)
+		(r1,r4) and (r2,r4)
+	The signs should theoretically match between the two r1/r2 pairs. But in case they're not,
+	we'll just pick the larger of the two as the reference. Normalize again, and we'll have:
+		(r1,r4) (r2,r4) (r3,r4)
+	Again, should be equal, but can take largest to make sure.
+	Technically the largest pairs should be fixed. If we sort the values to be [r1,r2,r3,r4] in desc
+	order, the largest pair is r1*r2, then r1*r3, then r1*r4. So really we just use the max
+	as the reference.
+Well, I'll stop working on this and just use this solution:
+https://d3cw3dd2w32x2b.cloudfront.net/wp-content/uploads/2015/01/matrix-to-quat.pdf
+Basically the same, though they've gone through all the four cases and got a better version
+
+https://math.stackexchange.com/questions/893984/conversion-of-rotation-matrix-to-quaternion
+Fixes the code to give correct signs
+See orthonormal_gen.py for tests
+
+	
+----------------------
+Debugging:
+without forces, just seeing if it will sit still fine; looks like interal forces/torques are all zero in first
+iteration; 2nd iteration, the last endpoint gets NaN for bending and dissipation torque. Then it propagates
+to n-1 point in next iter, while also getting nans in d3 force and d3 torque. Maybe something wrong with update
+equations.
+
+So I think my problem is that the last element shouldn't have torques applied to it; instead, the centerline
+between n-1 and n (stored in point n-1) should be updated. It appears looking at the equations above, that
+all the torques are only dependent on q, except the d3 torque constraint. So at least for those others, we
+can just skip that last node. For the d3, interestingly it only depends on qi not qi+1. So yeah, I think the
+fix here is just to do the d3 torques for the final node.
+
+Alright that seems to fix that problem. I'm adding a force to the final node now, -9.8*mass, to see what happens.
+Here we're getting a degenerate dissipation force, probably propagating from the end again. My guess is that the
+quaternion Qmat() is incorrect perhaps; reason is that I'd expect the dissipation force to have some z component,
+but its always just y. I checked the dissertation appendices, and I found his definition of quaternion matrix.
+Tested, and that doesn't help. Maybe need to re-examine the dissipation force calculation. Can't see anything
+wrong yet...
+- tried the paper's d3 matrix (not the simplified one I came up with earlier that just does 1-2*(...); doesn't help
+- I noticed the dissipation constants have 10^-6 as units; perhaps the author meant that you were supposed to
+	include that, so I've multplied those constants. Seems a bit more stable, so maybe that's the fix. Spring
+	constant is stanards kg/s^2, but paper lists 10^-3*kg/s^2.
+
+Convert MPa to Pa? That doesn't seem to help at all. The thing is, the values they give in the paper are nowhere
+near the values I'm seeing in online tables. Like they list hemp as 10-500, but this paper is set to 0.5.
+
+Another thing I noticed is the dissertation uses (wj 0) for quaternion-euler conversions. Doesn't seem to help
+at all. I think everything looks mostly reasonable except the stretch force now.
+
+If I disable all forces except d3, seems d3 isn't working right. The quaternion isn't getting rotated at all. So
+I think there must still be a problem with how quaternions are calculated here. I'm reading through
+http://bicycle.tudelft.nl/schwab/Publications/SchwabMeijaard2006.pdf to see if there's anything different.
+They say that: dq/dt = .5*(w circle q) = .5Q_bar*(0 w)
+The paper says: dq/dt = .5*Qj*(0 w)
+Dissertation says: dq/dt = .5*Qj*(w 0)
+	Ah, so I am seeing a difference here: (w circle q), according to the dissertation should be
+	computed as Q_bar*w instead; so maybe Q_bar is what is meant by Qj? I will try that. Actually,
+	checked again, and those are the parameters I was using
+
+However, I think the inverse there is a mismatch
+Schwab: (0 w) = 2*transpose(Q_bar)*dq/dt
+Paper: (0 t) = .5*transpose(Qj)*T
+dissertaiton: (t 0) = .5*transpose(Qj)*T
+
+I'm pretty sure the Q(q) corresponds to Q_bar from Schwab, except modified so that it becomes (t 0) instead of
+(0 t). Yeah, so just ran through the calculations and confirmed it.
+The dissertation uses the form:
+	[a b c d] circle [q1 q2 q3 q4] = [x y z w]
+While shwab is:
+	[d a b c] circle [q1 q2 q3 q4] = [w x y z]
+
+So theoretically, if .5Q[w 0] = v, then [w 0] = 2inv(Q)v
+I guess Q is orthogonal, which means inv(Q) = transpose(Q)
+
+Hmmm well, not sure what else to do. I think I did all the math correctly.
+I guess I'll give up on this paper
+
+Looking through dissertation to see if there's anything else I missed:
+- he does verify that you take derivative wrt ri and ri+1 for pts i and i+1; same with qj/qj+1
+- he actualy has a different intertia tensor:
+	J1,J2 = .25*lj*rho*pi*r^2
+	J3 = (J1+J2)/lj = .5*rho*pi*r^2
+
+	They also say that w cross Jw = 0; so we the formula is actually just
+		w += inv(J)(eucl_torque)*dt
+	That might have helped, a little. I think its slightly more stable.
+
+Just playing around, I tried negating all the forces/torques, and that is actually giving plausible results.
+Looks also like you do need to convert MPa to Pa (as well as the conversions for other constants)
+
+I will try adding some drag to the rope:
+	-.5*fluid_density*area*Cd*flow_velocity^2
+	http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.720.1807&rep=rep1&type=pdf
+		this paper has some wind tunnel experiments on thick rope
+	.5*fluid_density*flow_velocity*area*Cd
+	Cd is drag coefficient, which I think is around 1.2 for rope/cables
+		Laminar flow: relatively low velocities, little air turbulence
+		Turbulent flow: high velocities, turbulence, bigger objects Re > 1000
+			
+	Area = 2*r*li for a rod
+	Re = flow_velocity*characteristic_length/kinematic_viscosity https://www.youtube.com/watch?v=Wo63dvz71xI
+		they say characteristic length is usually something like pipe diameter; for aircraft, the length
+		of the aircraft... so maybe the diameter of the rope? Or the length?
+		kinematic viscosity = 15.16 m2/s x10-6, https://www.engineeringtoolbox.com/air-absolute-kinematic-viscosity-d_601.html
+			but varies on air density and temperature
+	https://en.wikipedia.org/wiki/Drag_equation
+	This says Re = flow_velocity*sqrt(A)/kinematic_viscosity
+
+	For cylinders, it is almost all pressure drag.
+
+	smooth cylinder:
+		1e5 or less: 1.2
+		3e5: can drop down to .4
+		1e7: goes back up to .95
+	rough cylinder/rope:
+		1e4?: 1.15
+		1e5: .6
+		3e5: 1.1
+	Also there is a curve defining Cd for various angles of attack
+
+	Typical A might be .002 (.1*(.01*2))
+	That's Re = 0.002949958*flow_velocity
+	It would have to be going very fast: 3389879 m/s, that's like 1% speed of light
+	either I did something wrong, or probably it really is just that low for Re
+		I think if you have larger area, then it is different anyways...
+	
+	air density is around 1.2
+	https://www.engineeringtoolbox.com/air-density-specific-weight-d_600.html
+
+	I will calcualte as: integral_t[0,1]{-.5*1.2*1.2*((1-t)*va + t*vb)^2 * A*da}
+	I'm actually not sure how you'd discretize that, since the forces are only applied
+	at the mass endpoints. I think what we could do is split the rod in two, and take
+	avg velocity from t=0 to .5 for mass i, then .5 to 1 for mass j. A would be calculated
+	as the length of the "rejection" vector (http://wikipedia.nd.ax/wiki/Scalar_resolute#Vector_rejection_2)
+	To calculate cross-sectional area, I'll approximate as well:
+		cross sectional length = c
+		l = ri+1-ri
+		l projected on v: p = .5l dot v/norm(v)
+			.5l gives half of l's length
+		v = .5(.5(va+vb) + va); or vb at end
+		  = .75va + .25*vb
+		then by pythogorean theorem to get c:
+			norm(.5*l)^2 = p^2 + c^2
+			(.5norm(l))^2 = p^2 + c^2
+			c = sqrt(.25*(l dot l) - p^2)
+			c = sqrt(.25(l dot l) - (.5l dot v/norm(v))^2)
+				[.5(la*va+lb*vb+lc*vc)]^2 = .25(l dot v/norm(v))
+			c = .5*sqrt((l dot l) - (l dot v/norm(v))^2)
+		area = c*2r (2 and .5 cancel, so its just r*sqrt(...))
+	Then rest of formula is:
+		-.5*1.2*1.2*A*||v||^2
+	And its in the direction ov velocity, so it ends up being:
+		(v/||v||)*||v||^2 = v*||v||, if that is easier to calculate
+
+	
+	
+	

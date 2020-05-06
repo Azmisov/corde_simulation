@@ -1,0 +1,45 @@
+Raw PD:
+	2*k*li*(
+		+qc*(2*qa*qc + 2*qb*qd + (rx - rx2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		-qd*(2*qb*qc - 2*qa*qd + (ry - ry2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		+qa*(qa^2 + qb^2 - qc^2 - qd^2 - (rz - rz2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+	)
+	2*k*li*(
+		+qd*(2*qa*qc + 2*qb*qd + (rx - rx2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		+qc*(2*qb*qc - 2*qa*qd + (ry - ry2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		+qb*(qa^2 + qb^2 - qc^2 - qd^2 - (rz - rz2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+	)
+	2*k*li*(
+		+qa*(2*qa*qc + 2*qb*qd + (rx - rx2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		+qb*(2*qb*qc - 2*qa*qd + (ry - ry2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		-qc*(qa^2 + qb^2 - qc^2 - qd^2 - (rz - rz2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+	)
+	-2*k*li*(
+		-qb*(2*qa*qc + 2*qb*qd + (rx - rx2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		+qa*(2*qb*qc - 2*qa*qd + (ry - ry2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+		+qd*(qa^2 + qb^2 - qc^2 - qd^2 - (rz - rz2)/sqrt((rx - rx2)^2 + (ry - ry2)^2 + (rz - rz2)^2))
+	)
+
+Extract shared components:
+	A = (rx2 - rx)/norm - (2*qa*qc + 2*qb*qd)
+	B = (ry2 - ry)/norm - (2*qb*qc - 2*qa*qd)
+	C = (rz2 - rz)/norm - (-qa^2 - qb^2 + qc^2 + qd^2)
+
+	+d -c +a
+	+d +c +b
+	+a +b -c
+	+b -a -d
+
+	2*k*li* [-qc*A +qd*B +qa*C]
+	2*k*li* [-qd*A -qc*B +qb*C]
+	2*k*li* [-qa*A -qb*B -qc*C]
+	2*k*li* [-qb*A +qa*B -qd*C]
+
+	Q1 matrix:
+		[-c +d +a]
+		[-d -c +b]
+		[-a -b -c]
+		[-b +a -d]
+
+Final formula:
+	2*k*li*Q1*(dr_norm - d3)

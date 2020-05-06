@@ -1,0 +1,47 @@
+partial derivatives, expanded
+
+2*(
+	-Kx*qd2*((-(qb - qb2)*(qc + qc2) + (qb + qb2)*(qc - qc2) - (qa - qa2)*(qd + qd2) + (qa + qa2)*(qd - qd2))/lj - ux)
+	+Kx*qc2*((+(qa - qa2)*(qc + qc2) - (qa + qa2)*(qc - qc2) - (qb - qb2)*(qd + qd2) + (qb + qb2)*(qd - qd2))/lj - uy)
+	-Ky*qb2*((-(qa - qa2)*(qb + qb2) + (qa + qa2)*(qb - qb2) - (qc - qc2)*(qd + qd2) + (qc + qc2)*(qd - qd2))/lj - uz)
+)
+2*(
+	-Kx*qc2*(-ux + (-(qb - qb2)*(qc + qc2) + (qb + qb2)*(qc - qc2) - (qa - qa2)*(qd + qd2) + (qa + qa2)*(qd - qd2))/lj)
+	-Kx*qd2*(-uy + ((qa - qa2)*(qc + qc2) - (qa + qa2)*(qc - qc2) - (qb - qb2)*(qd + qd2) + (qb + qb2)*(qd - qd2))/lj)
+	+Ky*qa2*(-uz + (-(qa - qa2)*(qb + qb2) + (qa + qa2)*(qb - qb2) - (qc - qc2)*(qd + qd2) + (qc + qc2)*(qd - qd2))/lj)
+)
+2*(
+	+Kx*qb2*(-ux + (-(qb - qb2)*(qc + qc2) + (qb + qb2)*(qc - qc2) - (qa - qa2)*(qd + qd2) + (qa + qa2)*(qd - qd2))/lj)
+	-Kx*qa2*(-uy + ((qa - qa2)*(qc + qc2) - (qa + qa2)*(qc - qc2) - (qb - qb2)*(qd + qd2) + (qb + qb2)*(qd - qd2))/lj)
+	-Ky*qd2*(-uz + (-(qa - qa2)*(qb + qb2) + (qa + qa2)*(qb - qb2) - (qc - qc2)*(qd + qd2) + (qc + qc2)*(qd - qd2))/lj)
+)
+2*(
+	Kx*qa2*((-(qb - qb2)*(qc + qc2) + (qb + qb2)*(qc - qc2) - (qa - qa2)*(qd + qd2) + (qa + qa2)*(qd - qd2))/lj - ux)
+	Kx*qb2*((+(qa - qa2)*(qc + qc2) - (qa + qa2)*(qc - qc2) - (qb - qb2)*(qd + qd2) + (qb + qb2)*(qd - qd2))/lj - uy)
+	Ky*qc2*((-(qa - qa2)*(qb + qb2) + (qa + qa2)*(qb - qb2) - (qc - qc2)*(qd + qd2) + (qc + qc2)*(qd - qd2))/lj - uz)
+)
+
+extract shared components and simplify
+	A = Kx * ((+sd*da +sc*db -sb*dc -sa*dd)/lj - ux)
+	B = Kx * ((-sc*da +sd*db +sa*dc -sb*dd)/lj - uy)
+	C = Ky * ((+sb*da -sa*db +sd*dc -sc*dd)/lj - uz)
+
+	2*(-qd2*A +qc2*B -qb2*C)
+	2*(-qc2*A -qd2*B +qa2*C)
+	2*(+qb2*A -qa2*B -qd2*C)
+	2*(+qa2*A +qb2*B +qc2*C)
+
+matrix notation:
+	SD = (qj+1 + qj) matrix
+		[+d +c -b -a]
+		[-c +d +a -b]
+		[+b -a +d -c]
+	Q2 = qj+1 matrix
+		[-d +c -b]
+		[-c -d +a]
+		[+b -a -d]
+		[+a +b +c]
+			negated transpose of SD format (except one is qj+1 and other qj)
+
+Final formula:
+	2*Q2* ([Kx Kx Ky] hammer_prod (SD*dq/lj - u))

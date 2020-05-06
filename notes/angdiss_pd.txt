@@ -1,0 +1,42 @@
+raw, with some formatting
+	4*gr/lj (
+		+qb (qb*qda - qb2*qda2 - qa*qdb + qa2*qdb2 - qd*qdc + qd2*qdc2 + qc*qdd - qc2*qdd2)
+		+qc (qc*qda - qc2*qda2 + qd*qdb - qd2*qdb2 - qa*qdc + qa2*qdc2 - qb*qdd + qb2*qdd2)
+		+qd (qd*qda - qd2*qda2 - qc*qdb + qc2*qdb2 + qb*qdc - qb2*qdc2 - qa*qdd + qa2*qdd2)
+	)
+	4*gr/lj (
+		-qa (qb*qda - qb2*qda2 - qa*qdb + qa2*qdb2 - qd*qdc + qd2*qdc2 + qc*qdd - qc2*qdd2)
+		+qd (qc*qda - qc2*qda2 + qd*qdb - qd2*qdb2 - qa*qdc + qa2*qdc2 - qb*qdd + qb2*qdd2)
+		-qc (qd*qda - qd2*qda2 - qc*qdb + qc2*qdb2 + qb*qdc - qb2*qdc2 - qa*qdd + qa2*qdd2)
+	)
+	4*gr/lj (
+		-qd (qb*qda - qb2*qda2 - qa*qdb + qa2*qdb2 - qd*qdc + qd2*qdc2 + qc*qdd - qc2*qdd2)
+		-qa (qc*qda - qc2*qda2 + qd*qdb - qd2*qdb2 - qa*qdc + qa2*qdc2 - qb*qdd + qb2*qdd2)
+		+qb (qd*qda - qd2*qda2 - qc*qdb + qc2*qdb2 + qb*qdc - qb2*qdc2 - qa*qdd + qa2*qdd2)
+	)
+	4*gr/lj (
+		+qc (qb*qda - qb2*qda2 - qa*qdb + qa2*qdb2 - qd*qdc + qd2*qdc2 + qc*qdd - qc2*qdd2)
+		-qb (qc*qda - qc2*qda2 + qd*qdb - qd2*qdb2 - qa*qdc + qa2*qdc2 - qb*qdd + qb2*qdd2)
+		-qa (qd*qda - qd2*qda2 - qc*qdb + qc2*qdb2 + qb*qdc - qb2*qdc2 - qa*qdd + qa2*qdd2)
+	)
+
+
+
+Rearrange, adjust negatives:
+	A =	-qd*qda + qd2*qda2 + qc*qdb - qc2*qdb2 - qb*qdc + qb2*qdc2 + qa*qdd - qa2*qdd2
+	B = -qc*qda + qc2*qda2 - qd*qdb + qd2*qdb2 + qa*qdc - qa2*qdc2 + qb*qdd - qb2*qdd2
+	C =	 qb*qda - qb2*qda2 - qa*qdb + qa2*qdb2 - qd*qdc + qd2*qdc2 + qc*qdd - qc2*qdd2
+
+	These components form Bkj2*dj2/dt - Bkj1*dj/d2
+	I'll call this BKD
+
+	QA matrix:
+		[-d -c +b]
+		[+c -d -a]
+		[-b +a -d]
+		[+a +b +c]
+	This is actually equal to -transpose(Bkj1)
+
+Final formula:
+	4*gr/lj*QA*BKD
+	
